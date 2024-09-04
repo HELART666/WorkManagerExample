@@ -1,5 +1,7 @@
 package com.example.parcelable
 
+import android.content.Intent
+import android.content.IntentFilter
 import android.icu.util.Calendar
 import android.icu.util.TimeZone
 import android.os.Bundle
@@ -23,8 +25,18 @@ import com.example.parcelable.ui.theme.ParcelableTheme
 
 class MainActivity : ComponentActivity() {
 
+    val chargeReceiver = OnChargeReceiver()
+    val filter = IntentFilter()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        filter.addAction(Intent.ACTION_POWER_CONNECTED)
+        filter.addAction(Intent.ACTION_POWER_DISCONNECTED)
+        registerReceiver(
+            chargeReceiver,
+            filter
+        )
+
         enableEdgeToEdge()
         setContent {
             ParcelableTheme {
@@ -59,6 +71,7 @@ class MainActivity : ComponentActivity() {
         super.onPause()
         sendEndData()
     }
+
     private fun sendEndData() {
         val request = OneTimeWorkRequestBuilder<LogWorkManager>()
             .setInputData(
@@ -77,6 +90,11 @@ class MainActivity : ComponentActivity() {
                 )
             ).build()
         WorkManager.getInstance(applicationContext).enqueue(request)
+    }
+
+    override fun onDestroy() {
+        unregisterReceiver(chargeReceiver)
+        super.onDestroy()
     }
 }
 
