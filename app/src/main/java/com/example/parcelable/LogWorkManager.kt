@@ -45,10 +45,9 @@ class LogWorkManager(
             saveEndDataToPrefs(context = appContext, data = it)
             Log.d("WORKMANAGER_DATA", "END_DATA_SAVE_TO_PREFS $it")
         }
-        getStartDataFromPrefsAndLoggIt(appContext)?.let {
-            if (!isAppInForeground(appContext)) {
-                createAndShowNotification(appContext, it)
-            } else {
+
+        if (isAppInForeground(appContext)) {
+            getStartDataFromPrefsAndLoggIt(appContext)?.let {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(
                         appContext,
@@ -56,6 +55,10 @@ class LogWorkManager(
                         Toast.LENGTH_SHORT
                     ).show()
                 }
+            }
+        } else {
+            getEndDataFromPrefsAndLoggIt(appContext)?.let {
+                createAndShowNotification(appContext, it)
             }
         }
 
@@ -72,6 +75,13 @@ class LogWorkManager(
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val data = prefs.getString(DATE_APP_START_KEY_PREFS, "dataDefault")
             Log.d("WORKMANAGER_DATA", "ПОСЛЕДНИЙ ЗАПУСК ${data.toString()}")
+            return data
+        }
+
+        fun getEndDataFromPrefsAndLoggIt(context: Context): String? {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val data = prefs.getString(DATE_APP_END_KEY_PREFS, "dataDefault")
+            Log.d("WORKMANAGER_DATA", "ПОСЛЕДНИЙ ВЫХОД ${data.toString()}")
             return data
         }
     }
@@ -96,7 +106,7 @@ private fun saveEndDataToPrefs(context: Context, data: String) {
     prefs.edit().putString(DATE_APP_END_KEY_PREFS, data).apply()
 }
 
-private fun createAndShowNotification(context: Context, startDate: String) {
+private fun createAndShowNotification(context: Context, endDate: String) {
     val channelId = "NOTIFICATION_CHANNEL_ID"
     val channelName = "Periodic push"
 
@@ -106,8 +116,8 @@ private fun createAndShowNotification(context: Context, startDate: String) {
     manager.createNotificationChannel(channel)
 
     val notificationBuilder = NotificationCompat.Builder(context, channelId)
-        .setContentTitle("Уведомление о входе в приложение")
-        .setContentText("Дата последнего входа в приложение: $startDate")
+        .setContentTitle("Уведомление о выходе из приложения")
+        .setContentText("Дата последнего выхода из приложения: $endDate")
         .setSmallIcon(R.drawable.ic_launcher_foreground)
         .setAutoCancel(true)
 
