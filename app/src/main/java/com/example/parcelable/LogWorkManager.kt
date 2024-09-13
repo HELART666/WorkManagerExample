@@ -1,13 +1,19 @@
 package com.example.parcelable
 
 import android.annotation.SuppressLint
+import android.app.ActivityManager
+import android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
-import android.content.SharedPreferences
 import android.util.Log
+import android.widget.Toast
+import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
-import androidx.work.Data
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 
 const val PREFS_NAME = "PREFS_NAME"
@@ -39,6 +45,19 @@ class LogWorkManager(
             saveEndDataToPrefs(context = appContext, data = it)
             Log.d("WORKMANAGER_DATA", "END_DATA_SAVE_TO_PREFS $it")
         }
+        getStartDataFromPrefsAndLoggIt(appContext)?.let {
+            if (!isAppInForeground(appContext)) {
+                createAndShowNotification(appContext, it)
+            } else {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        appContext,
+                        "Последний запуск был $it",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
 
         return Result.Success(
             workDataOf(
@@ -47,6 +66,7 @@ class LogWorkManager(
             )
         )
     }
+
     companion object {
         fun getStartDataFromPrefsAndLoggIt(context: Context): String? {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -54,22 +74,45 @@ class LogWorkManager(
             Log.d("WORKMANAGER_DATA", "ПОСЛЕДНИЙ ЗАПУСК ${data.toString()}")
             return data
         }
-
-        fun getEndDataFromPrefsAndLoggIt(context: Context): String? {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val data = prefs.getString(DATE_APP_END_KEY_PREFS, "dataDefault")
-            Log.d("WORKMANAGER_DATA", "ПОСЛЕДНИЙ ВЫХОД ${data.toString()}")
-            return data
-        }
     }
 }
 
-fun saveStartDataToPrefs(context: Context, data: String) {
+/**
+ * Проверка на то, запущено ли приложение или находится в фоне
+ */
+private fun isAppInForeground(context: Context): Boolean {
+    return (context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager)?.runningAppProcesses
+        ?.any { it.processName == context.packageName && it.importance == IMPORTANCE_FOREGROUND }
+        ?: false
+}
+
+private fun saveStartDataToPrefs(context: Context, data: String) {
     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     prefs.edit().putString(DATE_APP_START_KEY_PREFS, data).apply()
 }
 
-fun saveEndDataToPrefs(context: Context, data: String) {
+private fun saveEndDataToPrefs(context: Context, data: String) {
     val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     prefs.edit().putString(DATE_APP_END_KEY_PREFS, data).apply()
+}
+
+private fun createAndShowNotification(context: Context, startDate: String) {
+    val channelId = "NOTIFICATION_CHANNEL_ID"
+    val channelName = "Periodic push"
+
+    val channel =
+        NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_DEFAULT)
+    val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    manager.createNotificationChannel(channel)
+
+    val notificationBuilder = NotificationCompat.Builder(context, channelId)
+        .setContentTitle("Уведомление о входе в приложение")
+        .setContentText("Дата последнего входа в приложение: $startDate")
+        .setSmallIcon(R.drawable.ic_launcher_foreground)
+        .setAutoCancel(true)
+
+    val notification = notificationBuilder.build()
+    val notificationManager =
+        context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    notificationManager.notify(1, notification)
 }

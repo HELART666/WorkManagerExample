@@ -1,5 +1,6 @@
 package com.example.parcelable
 
+import android.Manifest
 import android.content.Intent
 import android.content.IntentFilter
 import android.icu.util.Calendar
@@ -18,10 +19,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.example.parcelable.ui.theme.ParcelableTheme
+import java.util.concurrent.TimeUnit
+
+const val PERIODIC_WORK_NAME = "PERIODIC_WORK_NAME"
 
 class MainActivity : ComponentActivity() {
 
@@ -30,6 +37,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        ActivityCompat.requestPermissions(
+            this,
+            arrayOf(Manifest.permission.POST_NOTIFICATIONS), 0
+        )
+
         filter.addAction(Intent.ACTION_POWER_CONNECTED)
         filter.addAction(Intent.ACTION_POWER_DISCONNECTED)
         registerReceiver(
@@ -48,20 +61,6 @@ class MainActivity : ComponentActivity() {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     sendStartData()
-                    Text(
-                        text = "Последний старт приложения: ${
-                            LogWorkManager.getStartDataFromPrefsAndLoggIt(
-                                context = applicationContext
-                            )
-                        }"
-                    )
-                    Text(
-                        text = "Последний выход из приложения: ${
-                            LogWorkManager.getEndDataFromPrefsAndLoggIt(
-                                context = applicationContext
-                            )
-                        }"
-                    )
                 }
             }
         }
@@ -73,23 +72,37 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun sendEndData() {
-        val request = OneTimeWorkRequestBuilder<LogWorkManager>()
+        val request = PeriodicWorkRequestBuilder<LogWorkManager>(
+            repeatInterval = 15,
+            repeatIntervalTimeUnit = TimeUnit.MINUTES,
+            )
             .setInputData(
                 workDataOf(
                     DATE_APP_END_KEY to Calendar.getInstance().time.toString(),
                 )
             ).build()
-        WorkManager.getInstance(applicationContext).enqueue(request)
+        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+            PERIODIC_WORK_NAME,
+            ExistingPeriodicWorkPolicy.CANCEL_AND_REENQUEUE,
+            request
+        )
     }
 
     private fun sendStartData() {
-        val request = OneTimeWorkRequestBuilder<LogWorkManager>()
+        val request = PeriodicWorkRequestBuilder<LogWorkManager>(
+            repeatInterval = 15,
+            repeatIntervalTimeUnit = TimeUnit.MINUTES,
+        )
             .setInputData(
                 workDataOf(
                     DATE_APP_START_KEY to Calendar.getInstance().time.toString(),
                 )
             ).build()
-        WorkManager.getInstance(applicationContext).enqueue(request)
+        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+            PERIODIC_WORK_NAME,
+            ExistingPeriodicWorkPolicy.CANCEL_AND_REENQUEUE,
+            request
+        )
     }
 
     override fun onDestroy() {
